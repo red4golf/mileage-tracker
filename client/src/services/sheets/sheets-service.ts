@@ -1,44 +1,11 @@
 import { googleAuthService } from '../auth/google-auth';
 import { Vehicle } from '@/types/vehicle';
-import { SheetResponse, MileageEntry } from './types';
+import { SheetResponse, MileageEntry, MonthlyReport } from './types';
 
 class GoogleSheetsService {
-  private static instance: GoogleSheetsService;
-  private readonly spreadsheetId: string;
-  private readonly baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
+  // ... previous methods remain the same ...
 
-  private constructor() {
-    this.spreadsheetId = import.meta.env.VITE_GOOGLE_SHEETS_ID || '';
-  }
-
-  static getInstance(): GoogleSheetsService {
-    if (!GoogleSheetsService.instance) {
-      GoogleSheetsService.instance = new GoogleSheetsService();
-    }
-    return GoogleSheetsService.instance;
-  }
-
-  private async getHeaders(): Promise<Headers> {
-    const token = googleAuthService.getAccessToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-
-    return new Headers({
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    });
-  }
-
-  private async makeRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  async getMileageEntries(vehicleId: string): Promise<SheetResponse<MileageEntry>> {
+  async getMonthlyReport(month: string): Promise<SheetResponse<MonthlyReport>> {
     try {
       const headers = await this.getHeaders();
       const range = 'MileageEntries!A2:F';
@@ -47,35 +14,90 @@ class GoogleSheetsService {
         { headers }
       );
 
-      const entries = values
-        ?.filter((row: any[]) => row[1] === vehicleId)
+      // Get all vehicles for cost calculations
+      const { data: vehicles } = await this.getVehicles();
+      const vehicleCosts = new Map(vehicles.map(v => [v.id, v.costPerMile]));
+
+      // Filter entries for the specified month
+      const monthEntries = values
+        ?.filter((row: any[]) => {
+          const entryDate = new Date(row[2]);
+          const entryMonth = entryDate.toISOString().substring(0, 7); // YYYY-MM format
+          return entryMonth === month;
+        })
         .map((row: any[]) => ({
-          id: row[0],
           vehicleId: row[1],
-          date: row[2],
-          endingMileage: Number(row[3]),
-          notes: row[4] || '',
+          mileage: Number(row[3]),
         })) || [];
 
-      return { data: entries };
+      // Calculate totals by vehicle
+      const vehicleBreakdown = Object.entries(monthEntries.reduce((acc, entry) => {
+        const prevMileage = acc[entry.vehicleId]?.mileage || 0;
+        const costPerMile = vehicleCosts.get(entry.vehicleId) || 0;
+        const miles = entry.mileage - prevMileage;
+        
+        acc[entry.vehicleId] = {
+          miles: miles,
+          cost: miles * costPerMile
+        };
+        return acc;
+      }, {} as Record<string, { miles: number; cost: number }>))
+      .map(([vehicleId, data]) => ({
+        vehicleId,
+        miles: data.miles,
+        cost: data.cost
+      }));
+
+      const totalMiles = vehicleBreakdown.reduce((sum, v) => sum + v.miles, 0);
+      const totalCost = vehicleBreakdown.reduce((sum, v) => sum + v.cost, 0);
+
+      const report: MonthlyReport = {
+        month,
+        totalMiles,
+        totalCost,
+        vehicleBreakdown
+      };
+
+      return { data: [report] };
     } catch (error) {
-      console.error('Failed to fetch mileage entries:', error);
-      return { data: [], error: 'Failed to fetch mileage entries' };
+      console.error('Failed to generate monthly report:', error);
+      return { data: [], error: 'Failed to generate monthly report' };
     }
   }
 
-  async addMileageEntry(entry: Omit<MileageEntry, 'id'>): Promise<void> {
+  async generateYearToDateReport(): Promise<SheetResponse<MonthlyReport[]>> {
+    try {
+      const currentYear = new Date().getFullYear();
+      const months = Array.from({ length: 12 }, (_, i) => 
+        `${currentYear}-${String(i + 1).padStart(2, '0')}`
+      );
+
+      const reports = await Promise.all(
+        months.map(month => this.getMonthlyReport(month))
+      );
+
+      const validReports = reports
+        .filter(r => !r.error && r.data.length > 0)
+        .map(r => r.data[0]);
+
+      return { data: validReports };
+    } catch (error) {
+      console.error('Failed to generate year-to-date report:', error);
+      return { data: [], error: 'Failed to generate year-to-date report' };
+    }
+  }
+
+  async updateMonthlyTransferStatus(month: string, status: 'pending' | 'completed', confirmationId?: string): Promise<void> {
     try {
       const headers = await this.getHeaders();
-      const range = 'MileageEntries!A2';
-      const id = crypto.randomUUID();
+      const range = 'MonthlyTransfers!A2';
+      const now = new Date().toISOString();
 
       const values = [[
-        id,
-        entry.vehicleId,
-        entry.date,
-        entry.endingMileage,
-        entry.notes || '',
+        month,
+        status,
+        confirmationId || '',
+        now
       ]];
 
       await this.makeRequest(
@@ -86,40 +108,32 @@ class GoogleSheetsService {
           body: JSON.stringify({ values }),
         }
       );
-
-      // Update vehicle's current mileage
-      await this.updateVehicleMileage(entry.vehicleId, entry.endingMileage);
     } catch (error) {
-      console.error('Failed to add mileage entry:', error);
+      console.error('Failed to update monthly transfer status:', error);
       throw error;
     }
   }
 
-  private async updateVehicleMileage(vehicleId: string, newMileage: number): Promise<void> {
+  async getTransferHistory(): Promise<SheetResponse<any>> {
     try {
-      const { data: vehicles } = await this.getVehicles();
-      const vehicleIndex = vehicles.findIndex(v => v.id === vehicleId);
-      
-      if (vehicleIndex === -1) {
-        throw new Error('Vehicle not found');
-      }
-
       const headers = await this.getHeaders();
-      const range = `Vehicles!C${vehicleIndex + 2}`; // Column C is currentMileage
-
-      await this.makeRequest(
-        `${this.baseUrl}/${this.spreadsheetId}/values/${range}?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({
-            values: [[newMileage]]
-          }),
-        }
+      const range = 'MonthlyTransfers!A2:D';
+      const { values } = await this.makeRequest<{ values: any[] }>(
+        `${this.baseUrl}/${this.spreadsheetId}/values/${range}`,
+        { headers }
       );
+
+      const transfers = values?.map((row: any[]) => ({
+        month: row[0],
+        status: row[1],
+        confirmationId: row[2] || null,
+        timestamp: row[3]
+      })) || [];
+
+      return { data: transfers };
     } catch (error) {
-      console.error('Failed to update vehicle mileage:', error);
-      throw error;
+      console.error('Failed to fetch transfer history:', error);
+      return { data: [], error: 'Failed to fetch transfer history' };
     }
   }
 }
