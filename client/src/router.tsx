@@ -3,6 +3,7 @@ import { Layout } from '@/components/layout/Layout';
 import { HomePage } from '@/pages/HomePage';
 import { ReportsDashboard } from '@/pages/reports/ReportsDashboard';
 import { MonthlyReportDetail } from '@/pages/reports/MonthlyReportDetail';
+import { VehicleList } from '@/pages/vehicles/VehicleList';
 
 const router = createBrowserRouter([
   {
@@ -25,6 +26,10 @@ const router = createBrowserRouter([
             element: <MonthlyReportDetail />,
           },
         ],
+      },
+      {
+        path: 'vehicles',
+        element: <VehicleList />,
       },
     ],
   },
