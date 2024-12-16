@@ -44,3 +44,35 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
   return (
     <Card title="Transfer Status">
       <div className="space-y-4">
+        {/* Pending Transfers Section */}
+        <div>
+          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Pending Transfers</h4>
+          {pendingTransfers.length > 0 ? (
+            <div className="space-y-2">
+              {pendingTransfers.map((transfer) => (
+                <div
+                  key={transfer.month}
+                  className="flex items-center justify-between rounded-md bg-yellow-50 p-2 dark:bg-yellow-900/20"
+                >
+                  <span className="text-sm text-yellow-800 dark:text-yellow-200">
+                    {new Date(transfer.month + '-01').toLocaleString('default', {
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setSelectedTransfer(transfer)}
+                  >
+                    Mark Complete
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No pending transfers
+            </p>
+          )}
+        </div>
