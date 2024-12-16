@@ -4,6 +4,7 @@ import { HomePage } from '@/pages/HomePage';
 import { ReportsDashboard } from '@/pages/reports/ReportsDashboard';
 import { MonthlyReportDetail } from '@/pages/reports/MonthlyReportDetail';
 import { VehicleList } from '@/pages/vehicles/VehicleList';
+import { MileageEntryPage } from '@/pages/mileage/MileageEntryPage';
 
 const router = createBrowserRouter([
   {
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: 'vehicles',
         element: <VehicleList />,
+      },
+      {
+        path: 'mileage',
+        element: <MileageEntryPage />,
       },
     ],
   },
