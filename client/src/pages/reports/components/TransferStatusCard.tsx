@@ -76,3 +76,67 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
             </p>
           )}
         </div>
+
+        {/* Recent Completed Transfers Section */}
+        <div>
+          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Recent Transfers</h4>
+          <div className="space-y-2">
+            {recentTransfers.map((transfer) => (
+              <div
+                key={transfer.month}
+                className="flex items-center justify-between rounded-md bg-green-50 p-2 dark:bg-green-900/20"
+              >
+                <span className="text-sm text-green-800 dark:text-green-200">
+                  {new Date(transfer.month + '-01').toLocaleString('default', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </span>
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  {transfer.confirmationId}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Confirmation Dialog */}
+        {selectedTransfer && (
+          <div className="mt-4 rounded-md border border-gray-200 p-4 dark:border-gray-700">
+            <h4 className="mb-2 font-medium text-gray-900 dark:text-white">
+              Confirm Transfer
+            </h4>
+            <input
+              type="text"
+              placeholder="Enter confirmation ID"
+              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700"
+              value={confirmationId}
+              onChange={(e) => setConfirmationId(e.target.value)}
+            />
+            <div className="flex space-x-2">
+              <Button
+                variant="primary"
+                onClick={() =>
+                  updateTransfer.mutate({
+                    month: selectedTransfer.month,
+                    status: 'completed',
+                    confirmationId,
+                  })
+                }
+                disabled={!confirmationId}
+              >
+                Confirm
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setSelectedTransfer(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
