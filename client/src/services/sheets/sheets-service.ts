@@ -67,3 +67,40 @@ class GoogleSheetsService {
       return { data: [], error: 'Failed to fetch vehicles' };
     }
   }
+
+  async addVehicle(vehicle: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    try {
+      const headers = await this.getHeaders();
+      const range = 'Vehicles!A2';
+      const now = new Date().toISOString();
+      const id = crypto.randomUUID();
+
+      const values = [[
+        id,
+        vehicle.name,
+        vehicle.currentMileage,
+        vehicle.costPerMile,
+        vehicle.status,
+        vehicle.category || '',
+        vehicle.notes || '',
+        now,
+        now,
+      ]];
+
+      const response = await fetch(
+        `${this.baseUrl}/${this.spreadsheetId}/values/${range}:append?valueInputOption=RAW`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ values }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to add vehicle');
+      }
+    } catch (error) {
+      console.error('Failed to add vehicle:', error);
+      throw error;
+    }
+  }
