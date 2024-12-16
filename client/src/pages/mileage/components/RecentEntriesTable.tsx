@@ -1,8 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/common/Button';
+import { Dialog } from '@/components/common/Dialog';
+import { MileageEntryForm } from './MileageEntryForm';
 import { formatDate } from '@/utils/date';
 import { googleSheetsService } from '@/services/sheets/sheets-service';
 
 export const RecentEntriesTable = () => {
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+
   const { data: vehicles } = useQuery({
     queryKey: ['vehicles'],
     queryFn: () => googleSheetsService.getVehicles(),
@@ -50,53 +56,84 @@ export const RecentEntriesTable = () => {
   );
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead>
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Date
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Vehicle
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Mileage
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Notes
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-          {entries?.data.map((entry) => (
-            <tr key={entry.id}>
-              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                {formatDate(entry.date)}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                {vehicleMap.get(entry.vehicleId)?.name || 'Unknown'}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
-                {entry.endingMileage.toLocaleString()}
-              </td>
-              <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                {entry.notes}
-              </td>
-            </tr>
-          ))}
-          {(!entries?.data || entries.data.length === 0) && (
+    <>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead>
             <tr>
-              <td
-                colSpan={4}
-                className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-              >
-                No recent entries
-              </td>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Date
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Vehicle
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Mileage
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Notes
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                Actions
+              </th>
             </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {entries?.data.map((entry) => (
+              <tr key={entry.id}>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
+                  {formatDate(entry.date)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
+                  {vehicleMap.get(entry.vehicleId)?.name || 'Unknown'}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
+                  {entry.endingMileage.toLocaleString()}
+                </td>
+                <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                  {entry.notes}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setEditingEntry(entry)}
+                  >
+                    Edit
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {(!entries?.data || entries.data.length === 0) && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
+                  No recent entries
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog 
+        open={!!editingEntry} 
+        onClose={() => setEditingEntry(null)}
+        className="sm:max-w-lg"
+      >
+        <div className="space-y-4">
+          <Dialog.Title>Edit Mileage Entry</Dialog.Title>
+          {editingEntry && (
+            <MileageEntryForm
+              existingEntry={editingEntry}
+              onSuccess={() => setEditingEntry(null)}
+              onCancel={() => setEditingEntry(null)}
+            />
           )}
-        </tbody>
-      </table>
-    </div>
+        </div>
+      </Dialog>
+    </>
   );
 };
