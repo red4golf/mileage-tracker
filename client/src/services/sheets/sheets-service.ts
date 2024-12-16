@@ -38,66 +38,28 @@ class GoogleSheetsService {
     return response.json();
   }
 
-  async getVehicles(): Promise<SheetResponse<Vehicle>> {
+  async getMileageEntries(vehicleId: string): Promise<SheetResponse<MileageEntry>> {
     try {
       const headers = await this.getHeaders();
-      const range = 'Vehicles!A2:J';
+      const range = 'MileageEntries!A2:F';
       const { values } = await this.makeRequest<{ values: any[] }>(
         `${this.baseUrl}/${this.spreadsheetId}/values/${range}`,
         { headers }
       );
 
-      const vehicles = values?.map((row: any[]) => ({
-        id: row[0],
-        name: row[1],
-        currentMileage: Number(row[2]),
-        costPerMile: Number(row[3]),
-        status: row[4],
-        category: row[5],
-        notes: row[6],
-        createdAt: row[7],
-        updatedAt: row[8],
-      })) || [];
+      const entries = values
+        ?.filter((row: any[]) => row[1] === vehicleId)
+        .map((row: any[]) => ({
+          id: row[0],
+          vehicleId: row[1],
+          date: row[2],
+          endingMileage: Number(row[3]),
+          notes: row[4] || '',
+        })) || [];
 
-      return { data: vehicles };
+      return { data: entries };
     } catch (error) {
-      console.error('Failed to fetch vehicles:', error);
-      return { data: [], error: 'Failed to fetch vehicles' };
+      console.error('Failed to fetch mileage entries:', error);
+      return { data: [], error: 'Failed to fetch mileage entries' };
     }
   }
-
-  async addVehicle(vehicle: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
-    try {
-      const headers = await this.getHeaders();
-      const range = 'Vehicles!A2';
-      const now = new Date().toISOString();
-      const id = crypto.randomUUID();
-
-      const values = [[
-        id,
-        vehicle.name,
-        vehicle.currentMileage,
-        vehicle.costPerMile,
-        vehicle.status,
-        vehicle.category || '',
-        vehicle.notes || '',
-        now,
-        now,
-      ]];
-
-      await this.makeRequest(
-        `${this.baseUrl}/${this.spreadsheetId}/values/${range}:append?valueInputOption=RAW`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ values }),
-        }
-      );
-    } catch (error) {
-      console.error('Failed to add vehicle:', error);
-      throw error;
-    }
-  }
-}
-
-export const googleSheetsService = GoogleSheetsService.getInstance();
