@@ -6,20 +6,36 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/common/Button';
 import { googleSheetsService } from '@/services/sheets/sheets-service';
 
-const mileageSchema = z.object({
+const createMileageSchema = (currentMileage: number = 0) => z.object({
   vehicleId: z.string().min(1, 'Please select a vehicle'),
-  endingMileage: z.number().min(0, 'Mileage must be positive'),
+  endingMileage: z.number()
+    .min(0, 'Mileage must be positive')
+    .refine(value => value > currentMileage, {
+      message: `Ending mileage must be greater than current mileage (${currentMileage.toLocaleString()})`,
+    }),
   date: z.string().min(1, 'Date is required'),
   notes: z.string().optional(),
 });
 
-type MileageFormData = z.infer<typeof mileageSchema>;
+type MileageFormData = z.infer<ReturnType<typeof createMileageSchema>>;
 
 interface MileageEntryFormProps {
   onSuccess?: () => void;
+  existingEntry?: {
+    id: string;
+    vehicleId: string;
+    endingMileage: number;
+    date: string;
+    notes?: string;
+  };
+  onCancel?: () => void;
 }
 
-export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
+export const MileageEntryForm = ({ 
+  onSuccess, 
+  existingEntry,
+  onCancel 
+}: MileageEntryFormProps) => {
   const queryClient = useQueryClient();
   
   const { data: vehicles } = useQuery({
@@ -27,6 +43,9 @@ export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
     queryFn: () => googleSheetsService.getVehicles(),
     select: (data) => data.data.filter(v => v.status === 'active'),
   });
+
+  const selectedVehicleId = existingEntry?.vehicleId;
+  const selectedVehicle = vehicles?.find(v => v.id === selectedVehicleId);
 
   const {
     register,
@@ -36,15 +55,23 @@ export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
     setValue,
     formState: { errors },
   } = useForm<MileageFormData>({
-    resolver: zodResolver(mileageSchema),
+    resolver: zodResolver(createMileageSchema(selectedVehicle?.currentMileage)),
     defaultValues: {
-      date: new Date().toISOString().split('T')[0],
+      date: existingEntry?.date || new Date().toISOString().split('T')[0],
+      vehicleId: existingEntry?.vehicleId || '',
+      endingMileage: existingEntry?.endingMileage,
+      notes: existingEntry?.notes,
     },
   });
 
   const addMileage = useMutation({
     mutationFn: (data: MileageFormData) =>
-      googleSheetsService.addMileageEntry(data),
+      existingEntry
+        ? googleSheetsService.updateMileageEntry({
+            id: existingEntry.id,
+            ...data,
+          })
+        : googleSheetsService.addMileageEntry(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mileageEntries'] });
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
@@ -53,14 +80,14 @@ export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
     },
   });
 
-  const selectedVehicleId = watch('vehicleId');
-  const selectedVehicle = vehicles?.find(v => v.id === selectedVehicleId);
+  const watchedVehicleId = watch('vehicleId');
+  const watchedVehicle = vehicles?.find(v => v.id === watchedVehicleId);
 
   useEffect(() => {
-    if (selectedVehicle) {
-      setValue('endingMileage', selectedVehicle.currentMileage);
+    if (watchedVehicle && !existingEntry) {
+      setValue('endingMileage', watchedVehicle.currentMileage);
     }
-  }, [selectedVehicle, setValue]);
+  }, [watchedVehicle, setValue, existingEntry]);
 
   return (
     <form onSubmit={handleSubmit((data) => addMileage.mutate(data))} className="space-y-4">
@@ -75,6 +102,7 @@ export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
           id="vehicleId"
           className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           {...register('vehicleId')}
+          disabled={!!existingEntry}
         >
           <option value="">Select a vehicle</option>
           {vehicles?.map((vehicle) => (
@@ -139,9 +167,21 @@ export const MileageEntryForm = ({ onSuccess }: MileageEntryFormProps) => {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end space-x-2">
+        {onCancel && (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" disabled={addMileage.isPending}>
-          {addMileage.isPending ? 'Adding...' : 'Add Mileage'}
+          {addMileage.isPending
+            ? existingEntry
+              ? 'Saving...'
+              : 'Adding...'
+            : existingEntry
+            ? 'Save Changes'
+            : 'Add Mileage'
+          }
         </Button>
       </div>
     </form>
