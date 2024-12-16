@@ -1,18 +1,17 @@
-import { BrowserRouter as Router } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Router } from './router';
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Mileage Tracker</h1>
-        </div>
-      </Router>
-    </QueryClientProvider>
-  )
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <QueryClientProvider client={queryClient}>
+        <Router />
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
+  );
 }
 
-export default App
+export default App;
