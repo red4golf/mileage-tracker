@@ -1,48 +1,47 @@
+import { Link } from 'react-router-dom';
 import { Card } from '@/components/common/Card';
-import { MonthlyReport } from '@/services/sheets/types';
+import { Button } from '@/components/common/Button';
 
-interface MonthlySummaryCardProps {
-  report?: MonthlyReport;
+interface MonthlyData {
+  month: string;
+  totalMiles: number;
+  totalCost: number;
 }
 
-export const MonthlySummaryCard = ({ report }: MonthlySummaryCardProps) => {
-  const monthName = report
-    ? new Date(report.month + '-01').toLocaleString('default', { month: 'long' })
-    : new Date().toLocaleString('default', { month: 'long' });
+interface MonthlySummaryCardProps {
+  data?: MonthlyData;
+}
+
+export const MonthlySummaryCard = ({ data }: MonthlySummaryCardProps) => {
+  const monthName = data
+    ? new Date(data.month + '-01').toLocaleString('default', { month: 'long', year: 'numeric' })
+    : new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
     <Card title={`${monthName} Summary`}>
-      {report ? (
+      {data ? (
         <div className="space-y-4">
           <div className="flex justify-between">
             <span className="text-gray-600 dark:text-gray-400">Total Miles</span>
             <span className="font-medium text-gray-900 dark:text-white">
-              {report.totalMiles.toLocaleString()}
+              {data.totalMiles.toLocaleString()}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600 dark:text-gray-400">Total Cost</span>
             <span className="font-medium text-gray-900 dark:text-white">
-              ${report.totalCost.toLocaleString(undefined, {
+              ${data.totalCost.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </span>
           </div>
           <div className="pt-4">
-            <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Vehicle Breakdown</h4>
-            <div className="space-y-2">
-              {report.vehicleBreakdown.map((vehicle) => (
-                <div key={vehicle.vehicleId} className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Vehicle {vehicle.vehicleId}
-                  </span>
-                  <span className="text-gray-900 dark:text-white">
-                    {vehicle.miles.toLocaleString()} mi
-                  </span>
-                </div>
-              ))}
-            </div>
+            <Link to={`/reports/${data.month}`}>
+              <Button variant="secondary" size="sm" className="w-full">
+                View Full Report
+              </Button>
+            </Link>
           </div>
         </div>
       ) : (
