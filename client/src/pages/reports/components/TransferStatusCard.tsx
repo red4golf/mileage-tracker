@@ -1,33 +1,26 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { googleSheetsService } from '@/services/sheets/sheets-service';
+import { Dialog } from '@/components/common/Dialog';
+import { storageService } from '@/services/storage/storage-service';
 
-interface Transfer {
-  month: string;
-  status: 'pending' | 'completed';
-  confirmationId: string | null;
-  timestamp: string;
-}
-
-interface TransferStatusCardProps {
-  transfers: Transfer[];
-}
-
-export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
-  const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
+export const TransferStatusCard = () => {
+  const [selectedTransfer, setSelectedTransfer] = useState<string | null>(null);
   const [confirmationId, setConfirmationId] = useState('');
   const queryClient = useQueryClient();
 
+  const { data: transfers } = useQuery({
+    queryKey: ['transferHistory'],
+    queryFn: () => storageService.getMonthlyTransfers(),
+  });
+
   const updateTransfer = useMutation({
-    mutationFn: async ({ month, status, confirmationId }: {
+    mutationFn: ({ month, status, confirmationId }: { 
       month: string;
       status: 'pending' | 'completed';
       confirmationId?: string;
-    }) => {
-      await googleSheetsService.updateMonthlyTransferStatus(month, status, confirmationId);
-    },
+    }) => storageService.updateTransferStatus(month, status, confirmationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transferHistory'] });
       setSelectedTransfer(null);
@@ -35,18 +28,19 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
     },
   });
 
-  const pendingTransfers = transfers.filter(t => t.status === 'pending');
+  const pendingTransfers = transfers?.filter(t => t.status === 'pending') || [];
   const recentTransfers = transfers
-    .filter(t => t.status === 'completed')
+    ?.filter(t => t.status === 'completed')
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 3);
+    .slice(0, 3) || [];
 
   return (
     <Card title="Transfer Status">
       <div className="space-y-4">
-        {/* Pending Transfers Section */}
         <div>
-          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Pending Transfers</h4>
+          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">
+            Pending Transfers
+          </h4>
           {pendingTransfers.length > 0 ? (
             <div className="space-y-2">
               {pendingTransfers.map((transfer) => (
@@ -63,7 +57,7 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => setSelectedTransfer(transfer)}
+                    onClick={() => setSelectedTransfer(transfer.month)}
                   >
                     Mark Complete
                   </Button>
@@ -77,9 +71,10 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
           )}
         </div>
 
-        {/* Recent Completed Transfers Section */}
         <div>
-          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Recent Transfers</h4>
+          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">
+            Recent Transfers
+          </h4>
           <div className="space-y-2">
             {recentTransfers.map((transfer) => (
               <div
@@ -99,44 +94,48 @@ export const TransferStatusCard = ({ transfers }: TransferStatusCardProps) => {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Confirmation Dialog */}
-        {selectedTransfer && (
-          <div className="mt-4 rounded-md border border-gray-200 p-4 dark:border-gray-700">
-            <h4 className="mb-2 font-medium text-gray-900 dark:text-white">
-              Confirm Transfer
-            </h4>
-            <input
-              type="text"
-              placeholder="Enter confirmation ID"
-              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700"
-              value={confirmationId}
-              onChange={(e) => setConfirmationId(e.target.value)}
-            />
-            <div className="flex space-x-2">
-              <Button
-                variant="primary"
-                onClick={() =>
+      <Dialog
+        open={!!selectedTransfer}
+        onClose={() => setSelectedTransfer(null)}
+      >
+        <div className="space-y-4">
+          <Dialog.Title>Confirm Transfer</Dialog.Title>
+          <input
+            type="text"
+            placeholder="Enter confirmation ID"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700"
+            value={confirmationId}
+            onChange={(e) => setConfirmationId(e.target.value)}
+          />
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSelectedTransfer(null);
+                setConfirmationId('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedTransfer) {
                   updateTransfer.mutate({
-                    month: selectedTransfer.month,
+                    month: selectedTransfer,
                     status: 'completed',
                     confirmationId,
-                  })
+                  });
                 }
-                disabled={!confirmationId}
-              >
-                Confirm
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setSelectedTransfer(null)}
-              >
-                Cancel
-              </Button>
-            </div>
+              }}
+              disabled={!confirmationId}
+            >
+              Confirm
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
+      </Dialog>
     </Card>
   );
 };
