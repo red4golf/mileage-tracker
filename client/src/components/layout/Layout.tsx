@@ -1,12 +1,12 @@
-import { PropsWithChildren } from 'react';
-import { Header } from './Header';
+import { Outlet } from 'react-router-dom';
+import { Navigation } from './Navigation';
 
-export const Layout = ({ children }: PropsWithChildren) => {
+export const Layout = () => {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Header />
+      <Navigation />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {children}
+        <Outlet />
       </main>
     </div>
   );
