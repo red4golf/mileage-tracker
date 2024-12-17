@@ -1,15 +1,20 @@
-import { MonthlyReport } from '@/services/sheets/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+interface MonthlyData {
+  month: string;
+  totalMiles: number;
+  totalCost: number;
+}
+
 interface YearToDateChartProps {
-  data: MonthlyReport[];
+  data: MonthlyData[];
 }
 
 export const YearToDateChart = ({ data }: YearToDateChartProps) => {
   const chartData = data.map(report => ({
     name: new Date(report.month + '-01').toLocaleString('default', { month: 'short' }),
     miles: report.totalMiles,
-    cost: report.totalCost
+    cost: report.totalCost,
   }));
 
   return (
@@ -36,7 +41,7 @@ export const YearToDateChart = ({ data }: YearToDateChartProps) => {
               if (name === 'cost') {
                 return [`$${value.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
+                  maximumFractionDigits: 2,
                 })}`, 'Cost'];
               }
               return [value.toLocaleString(), 'Miles'];
