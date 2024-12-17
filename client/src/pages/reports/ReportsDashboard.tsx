@@ -1,74 +1,96 @@
-import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
-import { googleSheetsService } from '@/services/sheets/sheets-service';
-import { MonthlyReport } from '@/services/sheets/types';
-import { MonthlySummaryCard } from './components/MonthlySummaryCard';
 import { YearToDateChart } from './components/YearToDateChart';
+import { MonthlySummaryCard } from './components/MonthlySummaryCard';
 import { TransferStatusCard } from './components/TransferStatusCard';
+import { useQuery } from '@tanstack/react-query';
+import { storageService } from '@/services/storage/storage-service';
 
 export const ReportsDashboard = () => {
-  const { data: yearToDate, isLoading: isLoadingYTD } = useQuery({
-    queryKey: ['yearToDateReport'],
-    queryFn: () => googleSheetsService.generateYearToDateReport(),
-  });
-
-  const { data: transfers, isLoading: isLoadingTransfers } = useQuery({
-    queryKey: ['transferHistory'],
-    queryFn: () => googleSheetsService.getTransferHistory(),
-  });
-
   const currentMonth = new Date().toISOString().substring(0, 7);
-  const { data: currentMonthReport } = useQuery({
+
+  const { data: monthlyData } = useQuery({
     queryKey: ['monthlyReport', currentMonth],
-    queryFn: () => googleSheetsService.getMonthlyReport(currentMonth),
+    queryFn: async () => {
+      const vehicles = await storageService.getVehicles();
+      const allEntries = await Promise.all(
+        vehicles.map(vehicle => 
+          storageService.getMileageEntries(vehicle.id)
+        )
+      );
+
+      // Filter entries for current month
+      const monthEntries = allEntries.flatMap(entries => 
+        entries.filter(entry => entry.date.startsWith(currentMonth))
+      );
+
+      // Calculate totals
+      const totalMiles = monthEntries.reduce((sum, entry) => sum + entry.endingMileage, 0);
+      const totalCost = vehicles.reduce((sum, vehicle) => {
+        const vehicleEntries = monthEntries.filter(entry => entry.vehicleId === vehicle.id);
+        const miles = vehicleEntries.reduce((total, entry) => total + entry.endingMileage, 0);
+        return sum + (miles * vehicle.costPerMile);
+      }, 0);
+
+      return {
+        month: currentMonth,
+        totalMiles,
+        totalCost,
+      };
+    }
   });
 
-  if (isLoadingYTD || isLoadingTransfers) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-48 rounded-lg bg-gray-200 dark:bg-gray-700" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="h-32 rounded-lg bg-gray-200 dark:bg-gray-700" />
-          <div className="h-32 rounded-lg bg-gray-200 dark:bg-gray-700" />
-          <div className="h-32 rounded-lg bg-gray-200 dark:bg-gray-700" />
-        </div>
-      </div>
-    );
-  }
+  const { data: yearToDate } = useQuery({
+    queryKey: ['yearToDateReport'],
+    queryFn: async () => {
+      const currentYear = new Date().getFullYear();
+      const months = Array.from({ length: 12 }, (_, i) => 
+        `${currentYear}-${String(i + 1).padStart(2, '0')}`);
+
+      const monthlyReports = await Promise.all(
+        months.map(async (month) => {
+          const vehicles = await storageService.getVehicles();
+          const allEntries = await Promise.all(
+            vehicles.map(vehicle => 
+              storageService.getMileageEntries(vehicle.id)
+            )
+          );
+
+          const monthEntries = allEntries.flatMap(entries => 
+            entries.filter(entry => entry.date.startsWith(month))
+          );
+
+          const totalMiles = monthEntries.reduce((sum, entry) => sum + entry.endingMileage, 0);
+          const totalCost = vehicles.reduce((sum, vehicle) => {
+            const vehicleEntries = monthEntries.filter(entry => entry.vehicleId === vehicle.id);
+            const miles = vehicleEntries.reduce((total, entry) => total + entry.endingMileage, 0);
+            return sum + (miles * vehicle.costPerMile);
+          }, 0);
+
+          return {
+            month,
+            totalMiles,
+            totalCost,
+          };
+        })
+      );
+
+      return monthlyReports;
+    }
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          Reports Dashboard
-        </h1>
-      </div>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+        Reports Dashboard
+      </h1>
 
       <Card>
-        <YearToDateChart data={yearToDate?.data || []} />
+        <YearToDateChart data={yearToDate || []} />
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <MonthlySummaryCard report={currentMonthReport?.data?.[0]} />
-        
-        <Card title="Year to Date Summary">
-          <div className="space-y-4">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Total Miles</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {yearToDate?.data.reduce((sum, month) => sum + month.totalMiles, 0).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Total Cost</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                ${yearToDate?.data.reduce((sum, month) => sum + month.totalCost, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          </div>
-        </Card>
-
-        <TransferStatusCard transfers={transfers?.data || []} />
+        <MonthlySummaryCard data={monthlyData} />
+        <TransferStatusCard />
       </div>
     </div>
   );
