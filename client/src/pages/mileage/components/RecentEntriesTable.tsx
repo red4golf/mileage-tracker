@@ -1,41 +1,41 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/common/Button';
 import { Dialog } from '@/components/common/Dialog';
+import { Button } from '@/components/common/Button';
 import { MileageEntryForm } from './MileageEntryForm';
 import { formatDate } from '@/utils/date';
-import { googleSheetsService } from '@/services/sheets/sheets-service';
+import { storageService } from '@/services/storage/storage-service';
 
 export const RecentEntriesTable = () => {
   const [editingEntry, setEditingEntry] = useState<any>(null);
 
   const { data: vehicles } = useQuery({
     queryKey: ['vehicles'],
-    queryFn: () => googleSheetsService.getVehicles(),
+    queryFn: () => storageService.getVehicles(),
   });
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['mileageEntries'],
     queryFn: async () => {
-      if (!vehicles?.data) return { data: [] };
+      if (!vehicles) return [];
       
       // Get entries for all active vehicles
-      const activeVehicles = vehicles.data.filter(v => v.status === 'active');
+      const activeVehicles = vehicles.filter(v => v.status === 'active');
       const allEntries = await Promise.all(
         activeVehicles.map(vehicle =>
-          googleSheetsService.getMileageEntries(vehicle.id)
+          storageService.getMileageEntries(vehicle.id)
         )
       );
 
       // Combine and sort entries by date
       const combinedEntries = allEntries
-        .flatMap(response => response.data)
+        .flat()
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 10); // Show only last 10 entries
 
-      return { data: combinedEntries };
+      return combinedEntries;
     },
-    enabled: !!vehicles?.data,
+    enabled: !!vehicles,
   });
 
   if (isLoading) {
@@ -52,7 +52,7 @@ export const RecentEntriesTable = () => {
   }
 
   const vehicleMap = new Map(
-    vehicles?.data.map(vehicle => [vehicle.id, vehicle]) || []
+    vehicles?.map(vehicle => [vehicle.id, vehicle]) || []
   );
 
   return (
@@ -79,32 +79,33 @@ export const RecentEntriesTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-            {entries?.data.map((entry) => (
-              <tr key={entry.id}>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                  {formatDate(entry.date)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
-                  {vehicleMap.get(entry.vehicleId)?.name || 'Unknown'}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
-                  {entry.endingMileage.toLocaleString()}
-                </td>
-                <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                  {entry.notes}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setEditingEntry(entry)}
-                  >
-                    Edit
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {(!entries?.data || entries.data.length === 0) && (
+            {entries && entries.length > 0 ? (
+              entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
+                    {formatDate(entry.date)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
+                    {vehicleMap.get(entry.vehicleId)?.name || 'Unknown'}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
+                    {entry.endingMileage.toLocaleString()}
+                  </td>
+                  <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                    {entry.notes}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setEditingEntry(entry)}
+                    >
+                      Edit
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            ) : (
               <tr>
                 <td
                   colSpan={5}
