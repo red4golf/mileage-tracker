@@ -1,10 +1,10 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
-import { HomePage } from '@/pages/HomePage';
-import { ReportsDashboard } from '@/pages/reports/ReportsDashboard';
-import { MonthlyReportDetail } from '@/pages/reports/MonthlyReportDetail';
+import { Dashboard } from '@/pages/Dashboard';
 import { VehicleList } from '@/pages/vehicles/VehicleList';
 import { MileageEntryPage } from '@/pages/mileage/MileageEntryPage';
+import { ReportsDashboard } from '@/pages/reports/ReportsDashboard';
+import { MonthlyReportDetail } from '@/pages/reports/MonthlyReportDetail';
 
 const router = createBrowserRouter([
   {
@@ -13,7 +13,15 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <HomePage />,
+        element: <Dashboard />,
+      },
+      {
+        path: 'vehicles',
+        element: <VehicleList />,
+      },
+      {
+        path: 'mileage',
+        element: <MileageEntryPage />,
       },
       {
         path: 'reports',
@@ -27,14 +35,6 @@ const router = createBrowserRouter([
             element: <MonthlyReportDetail />,
           },
         ],
-      },
-      {
-        path: 'vehicles',
-        element: <VehicleList />,
-      },
-      {
-        path: 'mileage',
-        element: <MileageEntryPage />,
       },
     ],
   },
