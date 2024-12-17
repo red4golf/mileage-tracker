@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
-import { googleSheetsService } from '@/services/sheets/sheets-service';
+import { QueryLoadingBoundary } from '@/components/common/QueryLoadingBoundary';
 import { VehicleCard } from './components/VehicleCard';
 import { AddVehicleDialog } from './components/AddVehicleDialog';
 import { Vehicle } from '@/types/vehicle';
+import { storageService } from '@/services/storage/storage-service';
 
 export const VehicleList = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -13,24 +14,11 @@ export const VehicleList = () => {
 
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ['vehicles'],
-    queryFn: () => googleSheetsService.getVehicles(),
+    queryFn: () => storageService.getVehicles(),
   });
 
-  if (isLoading) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-8 w-64 rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-48 rounded-lg bg-gray-200 dark:bg-gray-700" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const activeVehicles = vehicles?.data.filter(v => v.status === 'active') || [];
-  const inactiveVehicles = vehicles?.data.filter(v => v.status === 'inactive') || [];
+  const activeVehicles = vehicles?.filter(v => v.status === 'active') || [];
+  const inactiveVehicles = vehicles?.filter(v => v.status === 'inactive') || [];
 
   return (
     <div className="space-y-6">
@@ -41,47 +29,49 @@ export const VehicleList = () => {
         <Button onClick={() => setIsAddDialogOpen(true)}>Add Vehicle</Button>
       </div>
 
-      <div className="space-y-6">
-        <div>
-          <h2 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
-            Active Vehicles
-          </h2>
-          {activeVehicles.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {activeVehicles.map((vehicle) => (
-                <VehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  onEdit={() => setSelectedVehicle(vehicle)}
-                />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <div className="py-8 text-center text-gray-500 dark:text-gray-400">
-                No active vehicles. Click "Add Vehicle" to get started.
-              </div>
-            </Card>
-          )}
-        </div>
-
-        {inactiveVehicles.length > 0 && (
+      <QueryLoadingBoundary loading={isLoading} type="component" loadingType="card">
+        <div className="space-y-6">
           <div>
             <h2 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
-              Inactive Vehicles
+              Active Vehicles
             </h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {inactiveVehicles.map((vehicle) => (
-                <VehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  onEdit={() => setSelectedVehicle(vehicle)}
-                />
-              ))}
-            </div>
+            {activeVehicles.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {activeVehicles.map((vehicle) => (
+                  <VehicleCard
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    onEdit={() => setSelectedVehicle(vehicle)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                  No active vehicles. Click "Add Vehicle" to get started.
+                </div>
+              </Card>
+            )}
           </div>
-        )}
-      </div>
+
+          {inactiveVehicles.length > 0 && (
+            <div>
+              <h2 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+                Inactive Vehicles
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {inactiveVehicles.map((vehicle) => (
+                  <VehicleCard
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    onEdit={() => setSelectedVehicle(vehicle)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </QueryLoadingBoundary>
 
       <AddVehicleDialog
         open={isAddDialogOpen}
